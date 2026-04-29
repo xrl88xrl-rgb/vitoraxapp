@@ -18,10 +18,69 @@
             padding: 0;
         }
 
-        /* Panel dividido */
+        /* Temporizador fijo en la parte superior */
+        .timer-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #0a2463, #1e3a78);
+            color: white;
+            padding: 8px;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .timer-display {
+            font-size: 24px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        .timer-label {
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .progress-container {
+            width: 300px;
+            height: 8px;
+            background-color: rgba(255,255,255,0.3);
+            border-radius: 4px;
+            margin: 5px auto;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 1s linear;
+            width: 100%;
+        }
+
+        .extend-btn {
+            background-color: #ffc107;
+            color: #333;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 4px;
+            transition: transform 0.2s;
+        }
+
+        .extend-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Panel dividido - con margen superior para el temporizador */
         .container {
             display: flex;
             min-height: 100vh;
+            margin-top: 95px;
         }
 
         /* Panel izquierdo - formulario */
@@ -30,7 +89,7 @@
             background-color: #d9d9d9;
             padding: 10px;
             overflow-y: auto;
-            max-height: 100vh;
+            max-height: calc(100vh - 95px);
         }
 
         /* Panel derecho - ayuda */
@@ -39,7 +98,7 @@
             background-color: #f5f5f5;
             padding: 15px;
             overflow-y: auto;
-            max-height: 100vh;
+            max-height: calc(100vh - 95px);
             border-left: 1px solid #ddd;
         }
 
@@ -239,6 +298,11 @@
             padding: 6px;
             text-align: center;
             border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+
+        td:hover {
+            background-color: #f0f0f0;
         }
 
         .row-alta {
@@ -279,10 +343,45 @@
             margin-top: 10px;
         }
 
+        /* Overlay de cierre */
+        .shutdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            text-align: center;
+        }
+
+        .shutdown-message {
+            background: #003366;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 500px;
+        }
+
+        .shutdown-message h1 {
+            color: #ffc107;
+            margin-bottom: 20px;
+        }
+
+        .shutdown-message p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
+                margin-top: 120px;
             }
             .help-panel {
                 max-height: 300px;
@@ -295,10 +394,35 @@
             .buttons {
                 flex-wrap: wrap;
             }
+            .timer-display {
+                font-size: 18px;
+            }
+        }
+
+        /* Demo banner */
+        .demo-banner {
+            background: #ffc107;
+            color: #333;
+            text-align: center;
+            padding: 4px;
+            font-size: 11px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
+    <!-- Barra de temporizador fija -->
+    <div class="timer-bar">
+        <div class="demo-banner">🔬 VERSIÓN DE DEMOSTRACIÓN - 50 SEGUNDOS 🔬</div>
+        <div class="timer-label">⏱️ TIEMPO RESTANTE</div>
+        <div class="timer-display" id="timerDisplay">00:50</div>
+        <div class="progress-container">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+      
+        <div style="font-size: 10px; margin-top: 3px;">📞 Versión completa: 54133669</div>
+    </div>
+
     <div class="container">
         <!-- Panel izquierdo: Formulario -->
         <div class="form-panel">
@@ -431,12 +555,99 @@
                 <div class="help-title">⚠️ Factores de mayor peso</div>
                 <div class="help-text">• Neumonectomía: +18 pts<br>• ASA IV: +16 pts<br>• Edad ≥70: +14 pts<br>• Cardiopatía: +10 pts<br>• Reoperación: +10 pts<br>• Desnutrición: +12 pts</div>
             </div>
+            <div class="help-section">
+                <div class="help-title">⏱️ Tiempo de demostración</div>
+                <div class="help-text">• 50 segundos para probar la aplicación<br>• Use "+ Extender sesión" para añadir 30s<br>• La página se cerrará automáticamente</div>
+            </div>
         </div>
     </div>
 
     <script>
         let pacientes = [];
         let selectedRow = null;
+        
+        // Variables del temporizador
+        let tiempoRestante = 50; // 50 segundos
+        let temporizadorActivo = true;
+        let intervalo;
+
+        // Inicializar temporizador
+        function iniciarTemporizador() {
+            intervalo = setInterval(function() {
+                if (temporizadorActivo && tiempoRestante > 0) {
+                    tiempoRestante--;
+                    actualizarDisplay();
+                } else if (tiempoRestante <= 0) {
+                    clearInterval(intervalo);
+                    cerrarAplicacion();
+                }
+            }, 1000);
+        }
+
+        function actualizarDisplay() {
+            let minutos = Math.floor(tiempoRestante / 60);
+            let segundos = tiempoRestante % 60;
+            document.getElementById('timerDisplay').textContent = 
+                `${minutos.toString().padStart(2, '0')}:${segundos.toString().padStart(2, '0')}`;
+            
+            let porcentaje = (tiempoRestante / 50) * 100;
+            document.getElementById('progressFill').style.width = porcentaje + '%';
+            
+            // Cambiar color de la barra cuando queda poco tiempo
+            let progressFill = document.getElementById('progressFill');
+            if (tiempoRestante <= 10) {
+                progressFill.style.backgroundColor = '#dc3545';
+            } else if (tiempoRestante <= 20) {
+                progressFill.style.backgroundColor = '#ffc107';
+            } else {
+                progressFill.style.backgroundColor = '#28a745';
+            }
+        }
+
+        function extenderTiempo() {
+            if (temporizadorActivo) {
+                tiempoRestante += 30;
+                actualizarDisplay();
+                alert(`✅ Sesión extendida +30 segundos.\n⏱️ Tiempo restante: ${Math.floor(tiempoRestante/60)}:${(tiempoRestante%60).toString().padStart(2,'0')}`);
+            }
+        }
+
+        function cerrarAplicacion() {
+            temporizadorActivo = false;
+            clearInterval(intervalo);
+            
+            // Crear overlay de cierre
+            let overlay = document.createElement('div');
+            overlay.className = 'shutdown-overlay';
+            overlay.innerHTML = `
+                <div class="shutdown-message">
+                    <h1>⏰ TIEMPO AGOTADO</h1>
+                    <p>La sesión de prueba ha expirado después de 50 segundos.</p>
+                    <p>🔒 La aplicación se cerrará automáticamente.</p>
+                    <br>
+                    <p>📞 Para obtener la aplicación completamente funcional</p>
+                    <p style="font-size: 20px; font-weight: bold; color: #ffc107;">+54 11 3366-9000</p>
+                    <br>
+                    <p style="font-size: 12px;">¡Gracias por su interés!</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            // Deshabilitar todos los inputs
+            let inputs = document.querySelectorAll('input, select, button');
+            inputs.forEach(el => {
+                if (el.id !== 'extendBtn') {
+                    el.disabled = true;
+                }
+            });
+            
+            // Redirigir o recargar después de 5 segundos (opcional)
+            setTimeout(function() {
+                // Opción: mostrar mensaje de contacto y no hacer nada más
+                // Para mantener la página pero bloqueada
+                overlay.style.backgroundColor = 'rgba(0,0,0,0.95)';
+            }, 5000);
+        }
 
         // IMC automático
         document.getElementById('peso').addEventListener('input', calcIMC);
@@ -459,7 +670,7 @@
             if (edad >= 70) p += 14;
             else if (edad >= 60) p += 10;
             else if (edad >= 50) p += 6;
-            else p += 2;
+            else if (edad > 0) p += 2;
 
             p += (document.getElementById('sexo').value === 'Masculino') ? 4 : 2;
             if (document.getElementById('tabaco').checked) p += 6;
@@ -481,16 +692,22 @@
             p += nutPts[nutricion] || 0;
 
             let hemo = parseFloat(document.getElementById('hemo').value);
-            if (hemo < 10) p += 10;
-            else if (hemo < 12) p += 5;
+            if (!isNaN(hemo)) {
+                if (hemo < 10) p += 10;
+                else if (hemo < 12) p += 5;
+            }
 
             let albumina = parseFloat(document.getElementById('albumina').value);
-            if (albumina < 2.5) p += 10;
-            else if (albumina < 3.5) p += 5;
+            if (!isNaN(albumina)) {
+                if (albumina < 2.5) p += 10;
+                else if (albumina < 3.5) p += 5;
+            }
 
             let spo2 = parseFloat(document.getElementById('spo2').value);
-            if (spo2 < 90) p += 10;
-            else if (spo2 < 95) p += 5;
+            if (!isNaN(spo2)) {
+                if (spo2 < 90) p += 10;
+                else if (spo2 < 95) p += 5;
+            }
 
             let proceder = document.getElementById('proceder').value;
             let procPts = {'Biopsia pulmonar':3, 'Pleurectomía':5, 'Tumorectomía':5, 'Pericardiectomía':6, 'Lobectomía':10, 'Esofagectomía':14, 'Neumonectomía':18, 'Otro':6};
@@ -508,14 +725,16 @@
             p += derPts[derrame] || 0;
 
             let hemorragia = parseFloat(document.getElementById('hemorragia').value);
-            if (hemorragia > 1000) p += 12;
-            else if (hemorragia > 500) p += 7;
-            else if (hemorragia > 200) p += 3;
+            if (!isNaN(hemorragia)) {
+                if (hemorragia > 1000) p += 12;
+                else if (hemorragia > 500) p += 7;
+                else if (hemorragia > 200) p += 3;
+            }
 
             let anestesia = document.getElementById('anestesia').value;
             if (anestesia === 'Local + Sedación') p += 1;
             else if (anestesia === 'General') p += 4;
-            else p += 2;
+            else if (anestesia !== '') p += 2;
 
             if (document.getElementById('intubacion').value === 'No') p += 5;
             if (document.getElementById('reoperacion').value === 'Sí') p += 10;
@@ -529,6 +748,11 @@
         }
 
         function calcularYGuardar() {
+            if (!temporizadorActivo) {
+                alert('La sesión ha expirado. Recargue la página para una nueva demostración.');
+                return;
+            }
+            
             let nombre = document.getElementById('nombre').value.trim();
             let historia = document.getElementById('historia').value.trim();
             if (!nombre) { alert('Ingrese el nombre del paciente'); return; }
@@ -554,7 +778,10 @@
             actualizarTabla();
             mostrarResultado(prob, clasif);
             document.getElementById('contador').innerText = `Total: ${pacientes.length} pacientes`;
-            limpiarFormulario();
+            
+            // Opcional: limpiar solo algunos campos, no todos
+            document.getElementById('nombre').value = '';
+            document.getElementById('historia').value = '';
         }
 
         function actualizarTabla() {
@@ -586,19 +813,32 @@
         }
 
         function eliminarSeleccionado() {
+            if (!temporizadorActivo) {
+                alert('La sesión ha expirado.');
+                return;
+            }
             if (selectedRow !== null && confirm('¿Eliminar este paciente?')) {
                 pacientes.splice(selectedRow, 1);
                 selectedRow = null;
                 actualizarTabla();
                 document.getElementById('contador').innerText = `Total: ${pacientes.length} pacientes`;
-            } else {
+            } else if (selectedRow === null) {
                 alert('Seleccione un paciente de la tabla');
             }
         }
 
         function verDetalle(idx) {
             let p = pacientes[idx];
-            alert(`PACIENTE: ${p.nombre}\nHC: ${p.historia}\nEdad: ${p.edad}\nSexo: ${p.sexo}\nASA: ${p.asa}\nProceder: ${p.proceder}\nRESULTADO: ${p.probabilidad}% - ${p.clasificacion}`);
+            alert(`═══════════════════════════════\n` +
+                  `PACIENTE: ${p.nombre}\n` +
+                  `HC: ${p.historia}\n` +
+                  `Edad: ${p.edad}\n` +
+                  `Sexo: ${p.sexo}\n` +
+                  `ASA: ${p.asa}\n` +
+                  `Proceder: ${p.proceder}\n` +
+                  `═══════════════════════════════\n` +
+                  `RESULTADO: ${p.probabilidad}% - ${p.clasificacion}\n` +
+                  `═══════════════════════════════`);
         }
 
         function mostrarResultado(prob, clasif) {
@@ -608,9 +848,20 @@
             badge.innerText = clasif === 'ALTA' ? '⚠️ PROBABILIDAD ALTA ⚠️' : '✅ PROBABILIDAD BAJA ✅';
             badge.className = 'result-badge ' + (clasif === 'ALTA' ? 'badge-alta' : 'badge-baja');
             container.style.display = 'block';
+            
+            // Auto-ocultar después de 5 segundos
+            setTimeout(() => {
+                if (container.style.display !== 'none') {
+                    container.style.opacity = '0.7';
+                }
+            }, 5000);
         }
 
         function limpiarFormulario() {
+            if (!temporizadorActivo) {
+                alert('La sesión ha expirado. Recargue la página para una nueva demostración.');
+                return;
+            }
             let inputs = ['nombre','historia','edad','peso','talla','spo2','hemo','albumina','tiempo_qx','hemorragia'];
             inputs.forEach(id => document.getElementById(id).value = '');
             let selects = ['sexo','asa','nutricion','proceder','conversion','derrame','localizacion','anestesia','intubacion','reoperacion'];
@@ -620,6 +871,11 @@
             document.getElementById('imc').value = '';
             document.getElementById('resultContainer').style.display = 'none';
         }
+
+        // Iniciar todo al cargar
+        window.onload = function() {
+            iniciarTemporizador();
+        };
     </script>
 </body>
 </html>
